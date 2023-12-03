@@ -104,7 +104,8 @@ class AnalisadorSemantico:
         elif simbolo.tipo == 'CADEIA' and isinstance(novo_valor, str):
             simbolo.valor = novo_valor
         else:
-            print(f"ERRO SEMÂNTICO: Tentativa de modificar o tipo da variável '{simbolo.lexema}'.")
+            mensagem_erro = f"ERRO SEMÂNTICO: Tentativa de modificar o tipo da variável '{simbolo.lexema}'."
+            print(f"\033[91m{mensagem_erro}\033[0m")
 
 
     def processar_print(self, lexema):
@@ -118,8 +119,8 @@ class AnalisadorSemantico:
             print(f"   Valor: {valor}")
             print(linha_separadora)
         else:
-            print(f"ERRO SEMÂNTICO: Variável '{lexema}' não declarada.")
-
+            messagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' não declarada."
+            print(f"\033[91m{messagem_erro}\033[0m")
 
     def obter_valor(self, lexema):
     # Obtem o valor no escopo atual, se não nos anteriores
@@ -132,14 +133,6 @@ class AnalisadorSemantico:
                     return tabela.simbolos[lexema].valor
         return None
     
-# Função para processar o código de um arquivo
-def processar_codigo_arquivo(nome_arquivo):
-    analisador = AnalisadorSemantico()
-    
-    with open(nome_arquivo, 'r', encoding='utf-8') as arquivo:
-        for linha in arquivo:
-            processar_linha(analisador, linha)
-
 class ProcessadorSemantico:
     def __init__(self, debug=False):
         self.analisador = AnalisadorSemantico()
@@ -267,127 +260,6 @@ class ProcessadorSemantico:
             # Agora você pode usar ou imprimir esses valores conforme necessário
             print(f"Chave: {chave}, Lexema: {conteudo_lexema}, Tipo: {tipo}, Valor: {valor}")
         print("-"*50)
-
-    
-     
-            
-# Função para processar cada linha do código
-def processar_linha___(analisador:AnalisadorSemantico, linha:str):
-    #verificar se a linha esta vazia
-    if linha.strip() == "":
-        return
-    print("---->Linha: ", linha.strip(" "), end="")
-    linha = linha.strip()
-    if linha.startswith("BLOCO"):
-        partes = linha.split()
-        if len(partes) == 2:
-            nome_bloco = partes[1]
-            print(f"Abrindo bloco: {nome_bloco}")
-            analisador.abrir_escopo()
-        else:
-            print("ERRO: Formato inválido para BLOCO.")
-    elif linha.startswith("FIM"):
-        # imprimir o conteudo das variaveis
-        print("-"*50)
-        print (f"Tabela de simbolos do bloco que esta sendo fechado")
-        for chave, simbolo in analisador.pilha_escopo[-1].simbolos.items():
-            conteudo_lexema = simbolo.lexema
-            tipo = simbolo.tipo
-            valor = simbolo.valor
-
-            # Agora você pode usar ou imprimir esses valores conforme necessário
-            print(f"Chave: {chave}, Lexema: {conteudo_lexema}, Tipo: {tipo}, Valor: {valor}")
-        print("-"*50)
-        
-        partes = linha.split()
-        if len(partes) == 2:
-            nome_bloco = partes[1]
-            print(f"Fechando bloco: {nome_bloco}")
-            analisador.fechar_escopo()
-        else:
-            print("ERRO: Formato inválido para FIM.")
-    elif linha.startswith("PRINT"):
-        lexema = linha.split()[1]
-        analisador.processar_print(lexema)
-    elif "=" in linha:
-        # Aqui so trata as possiveis atribuiçoes
-        # Gramatica de declaração
-        # DEC -> TIPO LIST AT 
-        # LIST -> AT , 
-        # LIST -> 
-        # AT -> ID 
-        # AT -> ID = CONST 
-        # ID -> tk_identificador 
-        # CONST -> tk_numero 
-        # CONST -> tk_cadeia 
-        # TIPO -> NUMERO 
-        # TIPO -> CADEIA
-        
-        # Exemplos de declaração
-        # NUMERO a = 10
-        # NUMERO a
-        # NUMERO a = 10, b = 20 
-        # CADEIA x = "Ola mundo"
-        # CADEIA x
-        # x= "Ola mundo"
-        # x = a (Onde a é outra variavel)     
-        if (linha.startswith("NUMERO") or linha.startswith("CADEIA")):
-            partes = linha.split(maxsplit=1)
-            tipo_declarado = partes[0]
-            tipo = tipo_declarado
-            declaracoes = partes[1]
-            declaracoes = declaracoes.split(",") 
-        else:
-            # Tratando declaração sem tipo ou possivel atribuiçao sem declaraçao
-            declaracoes = linha.split(",")
-            tipo = None
-            tipo_declarado = None
-            
-        for declaracao in declaracoes:
-            if "=" in declaracao:
-                lexema, valor = declaracao.split("=") 
-                lexema = lexema.strip()
-                valor = valor.strip()               
-                # Tratando o valor
-                # Se numero pode ser números inteiros ou reais (ex: 10, 10.0, +10, -1.345) 
-                # Se estiver cercado por aspas é uma cadeia                
-                if (valor.startswith('"') and valor.endswith('"')):
-                    valor = valor.strip('"')
-                elif (valor.translate(str.maketrans({'-':'', '+':'', '.':''})).isdigit()):
-                     valor = float(valor) if '.' in valor else int(valor)  
-                else:
-                    valor = analisador.obter_valor(valor) 
-                
-                if (tipo_declarado is not None): # -> Tem tipo declarado?
-                    # Se variavel existe no escopo atual: Da erro
-                    if (analisador.verificar_declaracao(lexema) == 1):
-                        print(f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo.")
-                    # Se não, Se Variavel existe em algum escopo anterior: Cria uma variavel local 
-                    else:
-                        analisador.adicionar_variavel(lexema, tipo_declarado, valor)
-                else: # -> Não tem tipo declarado
-                    # Se variavel existe no escopo atual: Atualiza valor
-                    if (analisador.verificar_declaracao(lexema) == 1):
-                        analisador.atualizar_valor(lexema, valor)
-                    # Se não, Se Variavel existe em algum escopo anterior: Cria uma variavel local 
-                    elif (analisador.verificar_declaracao(lexema) == -1): # Atualiza localmente a variavel tendo o tipo da variavel global 
-                        analisador.atualizar_valor(lexema, valor)
-                    else: # Se não, cria uma variavel local e inferir o tipo
-                        if (isinstance(valor, str)):
-                            tipo = "CADEIA"
-                        elif (isinstance(valor, (int, float))):
-                            tipo = "NUMERO"
-                        analisador.adicionar_variavel(lexema, tipo, valor) 
- 
-    elif linha.startswith("NUMERO") or linha.startswith("CADEIA"):
-            # Adicionando variaveis sem atribuiçao
-            partes = linha.split()
-            tipo = partes[0]
-            declaracoes = " ".join(partes[1:])
-            declaracoes = declaracoes.replace(" ", "")
-            declaracoes = declaracoes.split(",")
-            for declaracao in declaracoes:
-                analisador.adicionar_variavel(declaracao, tipo)
 
 def main():
     procesador = ProcessadorSemantico(debug=False)
