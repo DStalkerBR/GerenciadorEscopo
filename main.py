@@ -1,3 +1,5 @@
+import logging
+
 class Simbolo:
     def __init__(self, lexema, tipo, valor=None):
         self.lexema = lexema
@@ -9,22 +11,70 @@ class TabelaSimbolos:
         self.simbolos = {}
 
     def adicionar_simbolo(self, simbolo):
+        """
+        Adiciona um símbolo ao gerenciador de escopo.
+
+        Args:
+            simbolo: O símbolo a ser adicionado.
+
+        Returns:
+            None
+        """
         if simbolo.lexema not in self.simbolos:
             self.simbolos[simbolo.lexema] = simbolo
 
     def obter_tipo(self, lexema):
+        """
+        Obtém o tipo de um símbolo na tabela de símbolos.
+
+        Args:
+            lexema: O lexema do símbolo.
+
+        Returns:
+            O tipo do símbolo, ou None se o símbolo não estiver na tabela.
+        """
         if lexema in self.simbolos:
             return self.simbolos[lexema].tipo
         return None
 
     def atualizar_valor(self, lexema, novo_valor):
+        """
+        Atualiza o valor de um símbolo na tabela de símbolos.
+
+        Args:
+            lexema: O lexema do símbolo.
+            novo_valor: O novo valor do símbolo.
+
+        Returns:
+            None
+        """
         if lexema in self.simbolos:
             self.simbolos[lexema].valor = novo_valor
     
     def tem_simbolo(self, lexema):
+        """
+        Verifica se um símbolo está presente na tabela de símbolos.
+
+        Args:
+            lexema: O lexema do símbolo.
+
+        Returns:
+            True se o símbolo estiver presente, False caso contrário.
+        """
         return lexema in self.simbolos
     
     def substituir_simbolo(self, lexema, tipo, valor):
+        """
+        Substitui um símbolo na tabela de símbolos.
+
+        Args:
+            lexema: O lexema do símbolo.
+            tipo: O tipo do símbolo.
+            valor: O valor do símbolo.
+
+        Returns:
+            None
+        """
         self.simbolos[lexema] = Simbolo(lexema, tipo, valor)
 
 class AnalisadorSemantico:
@@ -32,38 +82,67 @@ class AnalisadorSemantico:
         self.pilha_escopo = [TabelaSimbolos()]
 
     def abrir_escopo(self):
+        """
+        Abre um novo escopo adicionando uma nova tabela de símbolos à pilha de escopos.
+        """
         nova_tabela = TabelaSimbolos()
         self.pilha_escopo.append(nova_tabela)
 
     def fechar_escopo(self):
+        """
+        Remove o escopo atual da pilha de escopos, caso haja mais de um escopo na pilha.
+        """
         if len(self.pilha_escopo) > 1:
             self.pilha_escopo.pop()
 
     
     def adicionar_variavel(self, lexema, tipo, valor=None):
+        """
+        Adiciona uma variável ao escopo atual.
+
+        Args:
+            lexema (str): O nome da variável.
+            tipo (str): O tipo da variável.
+            valor (any, optional): O valor inicial da variável. Defaults to None.
+
+        Returns:
+            bool: True se a variável foi adicionada com sucesso, False caso contrário.
+        """
         escopo_atual = self.pilha_escopo[-1]
 
         if escopo_atual.tem_simbolo(lexema):
             print(f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo.")
             return False  
 
+        logging.debug(f"Adicionando variável '{lexema}' ao escopo atual com tipo '{tipo}' e valor '{valor}'")
         simbolo = Simbolo(lexema, tipo, valor)
         escopo_atual.adicionar_simbolo(simbolo)
-        return True 
+        return True
    
 
     def verificar_tipo(self, lexema):
-        # verifica o tipo no escopo atual, se nao existir procura nos anterires
+        """
+        Verifica o tipo de um lexema no escopo atual e nos escopos anteriores.
+
+        Args:
+            lexema (str): O lexema a ser verificado.
+
+        Returns:
+            str or None: O tipo do lexema, se encontrado. Caso contrário, retorna None.
+        """
         escopo_atual = self.pilha_escopo[-1]
         tipo = escopo_atual.obter_tipo(lexema)
+        # cinza
+        logging.info(f"\033[90mVerificando tipo do símbolo '{lexema}' no escopo atual\033[0m")
         if tipo:
             return tipo
-    
+
+        logging.info(f"\033[90mVerificando tipo do símbolo '{lexema}' em escopos anteriores\033[0m")
         for tabela in self.pilha_escopo[-2::-1]:
             tipo = tabela.obter_tipo(lexema)
             if tipo:
                 return tipo
-            
+
         return None
     
     def verificar_declaracao(self, lexema):
@@ -76,27 +155,55 @@ class AnalisadorSemantico:
         Returns:
             int: 1 se o lexema está declarado no escopo atual, -1 se está declarado em escopos anteriores, 0 caso contrário.
         """
+        logging.debug(f"Verificando declaração do símbolo '{lexema}' no escopo atual")
         escopo_atual = self.pilha_escopo[-1]
         if escopo_atual.tem_simbolo(lexema):
             return 1
         
+        logging.debug(f"Verificando declaração do símbolo '{lexema}' em escopos anteriores")
         if any(tabela.tem_simbolo(lexema) for tabela in self.pilha_escopo[-2::-1]):
             return -1
         
         return 0
 
     def atualizar_valor(self, lexema, novo_valor):
+        """
+        Atualiza o valor de um símbolo no escopo atual ou em escopos anteriores.
+
+        Args:
+            lexema (str): O lexema do símbolo a ser atualizado.
+            novo_valor: O novo valor a ser atribuído ao símbolo.
+
+        Returns:
+            O resultado da atualização do valor do símbolo.
+
+        """
         escopo_atual = self.pilha_escopo[-1]
 
         if lexema in escopo_atual.simbolos:
+            logging.debug(f"Atualizando valor do símbolo '{lexema}' no escopo atual")
             return self._atualizar_valor_simbolo(escopo_atual.simbolos[lexema], novo_valor)
-            
+                
 
         for tabela in reversed(self.pilha_escopo[:-1]):
             if lexema in tabela.simbolos:
+                logging.debug(f"Atualizando valor do símbolo '{lexema}' em escopos anteriores")
                 return self._atualizar_valor_simbolo(tabela.simbolos[lexema], novo_valor)
     
     def _atualizar_valor_simbolo(self, simbolo, novo_valor):
+        """
+        Atualiza o valor de um símbolo no escopo.
+
+        Args:
+            simbolo (objeto): O símbolo a ser atualizado.
+            novo_valor (objeto): O novo valor a ser atribuído ao símbolo.
+
+        Returns:
+            None
+        """
+        # if self.debug:
+        logging.debug(f"Atualizando valor do símbolo '{simbolo.lexema}' para '{novo_valor}'")
+            # print(f"\033[93mAtualizando valor do símbolo '{simbolo.lexema}' para '{novo_valor}'\033[0m")
         if simbolo.valor is None:
             simbolo.valor = novo_valor
         elif simbolo.tipo == 'NUMERO' and isinstance(novo_valor, (int, float)):
@@ -109,21 +216,38 @@ class AnalisadorSemantico:
 
 
     def processar_print(self, lexema):
+        """
+        Processa a instrução de impressão de uma variável.
+
+        Args:
+            lexema (str): O nome da variável a ser impressa.
+
+        Returns:
+            None
+        """
         tipo = self.verificar_tipo(lexema)
         if tipo:
             valor = self.obter_valor(lexema)
             linha_separadora = "-" * 50
             print(linha_separadora)
-            print(f"PRINT {lexema}:")
-            print(f"   Tipo: {tipo}")
-            print(f"   Valor: {valor}")
+            print(f"\033[92mPRINT <{lexema}>:\033[0m")
+            print(f"   \033[94mTipo:\033[0m  {tipo}")
+            print(f"   \033[94mValor:\033[0m {valor}")
             print(linha_separadora)
         else:
             messagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' não declarada."
             print(f"\033[91m{messagem_erro}\033[0m")
 
     def obter_valor(self, lexema):
-    # Obtem o valor no escopo atual, se não nos anteriores
+        """
+        Obtém o valor de um símbolo no escopo atual ou nos escopos anteriores.
+
+        Args:
+            lexema (str): O lexema do símbolo a ser obtido.
+
+        Returns:
+            O valor do símbolo, se encontrado. Caso contrário, retorna None.
+        """
         escopo_atual = self.pilha_escopo[-1]
         if escopo_atual.tem_simbolo(lexema) and escopo_atual.simbolos[lexema].valor is not None:
             return escopo_atual.simbolos[lexema].valor
@@ -134,21 +258,38 @@ class AnalisadorSemantico:
         return None
     
 class ProcessadorSemantico:
-    def __init__(self, debug=False):
+    def __init__(self):
         self.analisador = AnalisadorSemantico()
-        self.debug = debug
+        self.bloco_atual = None
     
     def processar_codigo_arquivo(self, nome_arquivo):
+        """
+        Processa o código de um arquivo.
+
+        Args:
+            nome_arquivo (str): O nome do arquivo a ser processado.
+
+        Returns:
+            None
+        """
         with open(nome_arquivo, 'r', encoding='utf-8') as arquivo:
             for linha in arquivo:
                 self.processar_linha(linha)
     
     def processar_linha(self, linha):
+        """
+        Processa uma linha do código.
+
+        Args:
+            linha (str): A linha de código a ser processada.
+
+        Returns:
+            None
+        """
         if linha.strip() == "":
             return
         
-        if self.debug:
-            print("---->Linha: ", linha.strip(" "), end="")
+        logging.info(f"\033[95mProcessando linha: {linha.strip()}\033[0m")
         
         linha = linha.strip()
 
@@ -164,86 +305,115 @@ class ProcessadorSemantico:
             self.processar_declaracao(linha)
             
     def processar_bloco(self, linha):
+        """
+        Processa um bloco de código.
+
+        Args:
+            linha (str): A linha de código contendo o bloco.
+
+        Returns:
+            None
+        """
         partes = linha.split()
         if len(partes) == 2:
             nome_bloco = partes[1]
-            if self.debug:
-                print(f"Abrindo bloco: {nome_bloco}")
+            logging.debug(f"Abrindo bloco: {nome_bloco}")
+            self.bloco_atual = nome_bloco
             self.analisador.abrir_escopo()
         else:
             messagem_erro = f"ERRO: Formato inválido para BLOCO."
             print(f"\033[91m{messagem_erro}\033[0m")
     
     def processar_fim(self, linha):
-        if self.debug:
+        """
+        Processa a instrução 'FIM' do programa.
+
+        Fecha o bloco atual e imprime a tabela de símbolos, se o modo de depuração estiver ativado.
+
+        Args:
+            linha (str): A linha contendo a instrução 'FIM'.
+
+        Returns:
+            None
+        """
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
             self.imprimir_tabela_simbolos()
         
         partes = linha.split()
         if len(partes) == 2:
             nome_bloco = partes[1]
-            if self.debug:
-                print(f"Fechando bloco: {nome_bloco}")
+            logging.debug(f"Fechando bloco: {nome_bloco}")
             self.analisador.fechar_escopo()
         else:
             messagem_erro = f"ERRO: Formato inválido para FIM."
             print(f"\033[91m{messagem_erro}\033[0m")
     
     def processar_print(self, linha):
+        """
+        Processa a instrução de impressão.
+
+        Args:
+            linha (str): A linha contendo a instrução de impressão.
+
+        Returns:
+            None
+        """
         lexema = linha.split()[1]
+        logging.info(f"\033[90mProcessando instrução de impressão: {lexema}\033[0m")
         self.analisador.processar_print(lexema)
         
     def processar_atribuicao(self, linha):
-        if (linha.startswith("NUMERO") or linha.startswith("CADEIA")):
+        """
+        Processa uma linha contendo uma atribuição de variáveis.
+        
+        Args:
+            linha (str): A linha contendo a atribuição.
+        """
+        if linha.startswith(("NUMERO", "CADEIA")):
             partes = linha.split(maxsplit=1)
             tipo_declarado = partes[0]
-            tipo = tipo_declarado
-            declaracoes = partes[1]
-            declaracoes = declaracoes.split(",") 
+            declaracoes = partes[1].split(",") 
         else:
-            # Tratando declaração sem tipo ou possivel atribuiçao sem declaraçao
             declaracoes = linha.split(",")
-            tipo = None
             tipo_declarado = None
-            
+        
         for declaracao in declaracoes:
             if "=" in declaracao:
-                lexema, valor = declaracao.split("=") 
-                lexema = lexema.strip()
-                valor = valor.strip()               
-                # Tratando o valor
-                # Se numero pode ser números inteiros ou reais (ex: 10, 10.0, +10, -1.345) 
-                # Se estiver cercado por aspas é uma cadeia                
-                if (valor.startswith('"') and valor.endswith('"')):
-                    valor = valor.strip('"')
-                elif (valor.translate(str.maketrans({'-':'', '+':'', '.':''})).isdigit()):
-                     valor = float(valor) if '.' in valor else int(valor)  
-                else:
-                    valor = self.analisador.obter_valor(valor) 
-                
-                if (tipo_declarado is not None): # -> Tem tipo declarado?
-                    # Se variavel existe no escopo atual: Da erro
-                    if (self.analisador.verificar_declaracao(lexema) == 1):
-                        messagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo."
-                        print(f"\033[91m{messagem_erro}\033[0m")
-                    # Se não, Se Variavel existe em algum escopo anterior: Cria uma variavel local 
-                    else:
+                lexema, valor = declaracao.split("=")
+                lexema, valor = lexema.strip(), valor.strip()
+
+                # Tratando o valor                  
+                valor = (
+                        valor.strip('"') if valor.startswith('"') and valor.endswith('"') else
+                        int(valor) if (valor.lstrip('-+')).isdigit() else
+                        float(valor) if '.' in valor or valor.lstrip('-+').replace('.', '', 1).isdigit() else                       
+                        self.analisador.obter_valor(valor)
+                )
+
+                # Verificar declaração e tipo
+                declaracao_status = self.analisador.verificar_declaracao(lexema) # Verifica se a variável já foi declarada
+                if tipo_declarado:  # Se o tipo foi declarado
+                    if declaracao_status == 1: # Se a variável já foi declarada neste escopo
+                        mensagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo."
+                        print(f"\033[91m{mensagem_erro}\033[0m")
+                    else: # Se a variável não foi declarada neste escopo
                         self.analisador.adicionar_variavel(lexema, tipo_declarado, valor)
-                else: # -> Não tem tipo declarado
-                    # Se variavel existe no escopo atual: Atualiza valor
-                    if (self.analisador.verificar_declaracao(lexema) == 1):
-                        self.analisador.atualizar_valor(lexema, valor)
-                    # Se não, Se Variavel existe em algum escopo anterior: Cria uma variavel local 
-                    elif (self.analisador.verificar_declaracao(lexema) == -1): # Atualiza localmente a variavel tendo o tipo da variavel global 
-                        self.analisador.atualizar_valor(lexema, valor)
-                    else: # Se não, cria uma variavel local e inferir o tipo
-                        if (isinstance(valor, str)):
-                            tipo = "CADEIA"
-                        elif (isinstance(valor, (int, float))):
-                            tipo = "NUMERO"
-                        self.analisador.adicionar_variavel(lexema, tipo, valor) 
+                else: # Se o tipo não foi declarado
+                    if declaracao_status != 0: # Se a variável já foi declarada no escopo atual ou em escopos anteriores
+                        self.analisador.atualizar_valor(lexema, valor) # Atualiza o valor da variável
+                    else: # Se a variável não foi declarada
+                        tipo = "CADEIA" if isinstance(valor, str) else "NUMERO" # Define o tipo da variável
+                        self.analisador.adicionar_variavel(lexema, tipo, valor) # Adiciona a variável ao escopo
+
         
     def processar_declaracao(self, linha):
-        # Adicionando variaveis sem atribuiçao
+        """
+        Processa uma declaração de variável.
+
+        Args:
+            linha (str): A linha contendo a declaração de variável.
+        """
+        # Adicionando variaveis sem atribuição
         partes = linha.split()
         tipo = partes[0]
         declaracoes = " ".join(partes[1:])
@@ -253,6 +423,9 @@ class ProcessadorSemantico:
             self.analisador.adicionar_variavel(declaracao, tipo)
     
     def imprimir_tabela_simbolos(self):
+        """
+        Imprime a tabela de símbolos do bloco que está sendo fechado.
+        """
         print("-"*50)
         print (f"Tabela de simbolos do bloco que esta sendo fechado")
         for chave, simbolo in self.analisador.pilha_escopo[-1].simbolos.items():
@@ -265,7 +438,8 @@ class ProcessadorSemantico:
         print("-"*50)
 
 def main():
-    procesador = ProcessadorSemantico(debug=False)
+    logging.basicConfig(level=logging.DEBUG, format='\033[93m%(message)s\033[0m')
+    procesador = ProcessadorSemantico()
     procesador.processar_codigo_arquivo("programa.cic")
     
 if __name__ == "__main__":
