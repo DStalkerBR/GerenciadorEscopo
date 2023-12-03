@@ -72,20 +72,60 @@ class TabelaSimbolos:
 
 class AnalisadorSemantico:
     def __init__(self):
-        self.pilha_escopo = [TabelaSimbolos()]
+        self.nome_blocos = []
+        self.pilha_escopo:list[TabelaSimbolos] = []
         self.tipos_validos = {'NUMERO': (int, float), 'CADEIA': str}
+        
+    def executar_instrucoes(self, instrucoes):
+        """
+        Executa uma lista de instruções.
 
-    def abrir_escopo(self):
+        Args:
+            instrucoes (list[dict]): A lista de instruções a ser executada.
+        """
+        for instrucao in instrucoes:
+            self._executar_instrucao(instrucao)
+        
+    def _executar_instrucao(self, instrucao):
+        """
+        Executa uma instrução.
+
+        Args:
+            instrucao (dict): A instrução a ser executada.
+        """
+        instrucao_formatada = f"{instrucao['instrucao']}: " + ', '.join(f"{value}" for key, value in instrucao.items() if key != "instrucao" and value)
+        logging.warning(f"\033[95mExecutando instrução: {instrucao_formatada}\033[0m")
+        if instrucao["instrucao"] == "BLOCO":
+            self.abrir_escopo(instrucao["nome_bloco"])
+        elif instrucao["instrucao"] == "FIM":
+            self.fechar_escopo(instrucao["nome_bloco"])
+        elif instrucao["instrucao"] == "PRINT":
+            self.processar_print(instrucao["lexema"])
+        elif instrucao["instrucao"] == "ATRIBUICAO":
+            self.adicionar_variavel(instrucao["lexema"], instrucao["tipo_declarado"], instrucao["valor"])
+        elif instrucao["instrucao"] == "DECLARACAO":
+            self.adicionar_variavel(instrucao["lexema"], instrucao["tipo"])
+        else:
+            logging.error(f"\033[91mERRO: Instrução inválida.\033[0m")
+
+    def abrir_escopo(self, nome_bloco=""):
         """
         Abre um novo escopo adicionando uma nova tabela de símbolos à pilha de escopos.
         """
+        logging.debug(f"Abrindo bloco: {nome_bloco}")
+        self.nome_blocos.append(nome_bloco)
         nova_tabela = TabelaSimbolos()
         self.pilha_escopo.append(nova_tabela)
 
-    def fechar_escopo(self):
+    def fechar_escopo(self, nome_bloco=""):
         """
         Remove o escopo atual da pilha de escopos, caso haja mais de um escopo na pilha.
         """
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            self._imprimir_tabela_simbolos()
+        
+        logging.debug(f"Fechando bloco: {nome_bloco}")
+        self.nome_blocos.pop()
         if len(self.pilha_escopo) > 1:
             self.pilha_escopo.pop()
 
@@ -104,39 +144,64 @@ class AnalisadorSemantico:
         """
         escopo_atual = self.pilha_escopo[-1]
         
-        if valor:  
-            # Tratando o valor                  
-            valor = (
+        # Tratar valor apenas se estiver presente
+        if valor:                 
+            valor = self._tratar_valor(valor)
+        
+        # Se o tipo não foi especificado, verifica se a variável já foi declarada e atualiza o valor
+        # See não foi declarada, verifica o tipo do valor e adiciona a variável
+        if tipo is None:
+            declaracao_status = self.verificar_declaracao(lexema) # Verifica se a variável já foi declarada
+            if declaracao_status != 0: 
+                return self.atualizar_valor(lexema, valor) # Atualiza o valor se a variavel já foi declarada
+            else:
+                tipo = "CADEIA" if isinstance(valor, str) else "NUMERO" 
+        
+        if escopo_atual.tem_simbolo(lexema):
+            logging.error(f"\033[91mERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo.\033[0m") 
+            return False
+
+        return self._adicionar_variavel_escopo(escopo_atual, lexema, tipo, valor)
+        
+    def _tratar_valor(self, valor):
+        """ 
+        Trata o valor de uma variável, convertendo-o para o tipo adequado ou obtendo o valor de uma variável já declarada.
+
+        Args:
+            valor (str): O valor a ser tratado (pode ser um número, uma string ou o nome de uma variável já declarada
+
+        Returns:
+            int or float or str: O valor tratado.
+        """
+        return  (
                     valor.strip('"') if valor.startswith('"') and valor.endswith('"') else
                     int(valor) if (valor.lstrip('-+')).isdigit() else
                     float(valor) if '.' in valor or valor.lstrip('-+').replace('.', '', 1).isdigit() else                       
                     self.obter_valor(valor)
-            )
+                )  
         
-        if tipo is None:
-            declaracao_status = self.verificar_declaracao(lexema)
-            if declaracao_status != 0:
-                self.atualizar_valor(lexema, valor)
-                return True
-            else:
-                tipo = "CADEIA" if isinstance(valor, str) else "NUMERO"
+    def _adicionar_variavel_escopo(self, escopo, lexema, tipo, valor):
+        """
+        Adiciona uma variável ao escopo especificado.
 
-        if escopo_atual.tem_simbolo(lexema):
-            mensagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo."
-            logging.error(f"\033[91m{mensagem_erro}\033[0m")
-            return False  
-        
+        Args:
+            escopo (objeto): O escopo ao qual a variável será adicionada.
+            lexema (str): O nome da variável.
+            tipo (str): O tipo da variável.
+            valor (any, optional): O valor inicial da variável. Defaults to None.
+
+        Returns:
+            bool: True se a variável foi adicionada com sucesso, False caso contrário.
+        """
         logging.debug(f"Adicionando variável '{lexema}' ao escopo atual com tipo '{tipo}' e valor '{valor}'")
      
         if tipo in self.tipos_validos and (valor is None or isinstance(valor, self.tipos_validos[tipo])):
             simbolo = Simbolo(lexema, tipo, valor)
-            escopo_atual.adicionar_simbolo(simbolo)
+            escopo.adicionar_simbolo(simbolo)
             return True
         else:
-            mensagem_erro = f"ERRO SEMÂNTICO: Tentativa de atribuir um valor inválido à variável '{lexema}'."
-            logging.error(f"\033[91m{mensagem_erro}\033[0m")
+            logging.error(f"\033[91mERRO SEMÂNTICO: Tentativa de atribuir um valor inválido à variável '{lexema}'.\033[0m")
             return False
-   
 
     def verificar_tipo(self, lexema):
         """
@@ -150,7 +215,6 @@ class AnalisadorSemantico:
         """
         escopo_atual = self.pilha_escopo[-1]
         tipo = escopo_atual.obter_tipo(lexema)
-        # cinza
         logging.info(f"\033[90mVerificando tipo do símbolo '{lexema}' no escopo atual\033[0m")
         if tipo:
             return tipo
@@ -160,8 +224,6 @@ class AnalisadorSemantico:
             tipo = tabela.obter_tipo(lexema)
             if tipo:
                 return tipo
-
-        return None
     
     def verificar_declaracao(self, lexema):
         """
@@ -171,7 +233,7 @@ class AnalisadorSemantico:
             lexema (str): O lexema a ser verificado.
 
         Returns:
-            int: 1 se o lexema está declarado no escopo atual, -1 se está declarado em escopos anteriores, 0 caso contrário.
+            int: 1 se o lexema está declarado no escopo atual, -1 se está declarado em escopos anteriores, 0 caso não esteja declarado.
         """
         logging.debug(f"\033[90mVerificando declaração do símbolo '{lexema}' no escopo atual\033[0m")
         escopo_atual = self.pilha_escopo[-1]
@@ -193,7 +255,7 @@ class AnalisadorSemantico:
             novo_valor: O novo valor a ser atribuído ao símbolo.
 
         Returns:
-            O resultado da atualização do valor do símbolo.
+            bool: True se o valor foi atualizado com sucesso, False caso contrário.
 
         """
         escopo_atual = self.pilha_escopo[-1]
@@ -202,11 +264,11 @@ class AnalisadorSemantico:
             logging.debug(f"Atualizando valor do símbolo '{lexema}' no escopo atual")
             return self._atualizar_valor_simbolo(escopo_atual.simbolos[lexema], novo_valor)
                 
-
-        for tabela in reversed(self.pilha_escopo[:-1]):
+        for tabela in self.pilha_escopo[-2::-1]:
             if lexema in tabela.simbolos:
                 logging.debug(f"Atualizando valor do símbolo '{lexema}' em escopos anteriores")
                 return self._atualizar_valor_simbolo(tabela.simbolos[lexema], novo_valor)
+        return False
     
     def _atualizar_valor_simbolo(self, simbolo, novo_valor):
         """
@@ -215,20 +277,17 @@ class AnalisadorSemantico:
         Args:
             simbolo (objeto): O símbolo a ser atualizado.
             novo_valor (objeto): O novo valor a ser atribuído ao símbolo.
+            
+        Returns:
+            bool: True se o valor foi atualizado com sucesso, False caso contrário.
         """
-        # if self.debug:
         logging.debug(f"Atualizando valor do símbolo '{simbolo.lexema}' para '{novo_valor}'")
-            # print(f"\033[93mAtualizando valor do símbolo '{simbolo.lexema}' para '{novo_valor}'\033[0m")
-        if simbolo.valor is None:
+        if simbolo.valor is None or (simbolo.tipo in self.tipos_validos and isinstance(novo_valor, self.tipos_validos[simbolo.tipo])):
             simbolo.valor = novo_valor
-        elif simbolo.tipo == 'NUMERO' and isinstance(novo_valor, (int, float)):
-            simbolo.valor = novo_valor
-        elif simbolo.tipo == 'CADEIA' and isinstance(novo_valor, str):
-            simbolo.valor = novo_valor
+            return True
         else:
-            mensagem_erro = f"ERRO SEMÂNTICO: Tentativa de modificar o tipo da variável '{simbolo.lexema}'."
-            print(f"\033[91m{mensagem_erro}\033[0m")
-
+            logging.error(f"\033[91mERRO SEMÂNTICO: Tentativa de modificar o tipo da variável '{simbolo.lexema}'.\033[0m")
+            return False
 
     def processar_print(self, lexema):
         """
@@ -238,6 +297,8 @@ class AnalisadorSemantico:
             lexema (str): O nome da variável a ser impressa.
         """
         tipo = self.verificar_tipo(lexema)
+        
+        logging.info(f"\033[90mProcessando instrução de impressão: {lexema} no bloco {self.nome_blocos[-1]}\033[0m")
         if tipo:
             valor = self.obter_valor(lexema)
             linha_separadora = "-" * 50
@@ -247,8 +308,7 @@ class AnalisadorSemantico:
             print(f"   \033[94mValor:\033[0m {valor}")
             print(linha_separadora)
         else:
-            messagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' não declarada."
-            logging.error(f"\033[91m{messagem_erro}\033[0m")
+            logging.error(f"\033[91mERRO SEMÂNTICO: Variável '{lexema}' não declarada.\033[0m")
 
     def obter_valor(self, lexema):
         """
@@ -270,11 +330,18 @@ class AnalisadorSemantico:
                 if tabela.tem_simbolo(lexema) and tabela.simbolos[lexema].valor is not None:
                     return tabela.simbolos[lexema].valor
         return None
+
+    def _imprimir_tabela_simbolos(self):
+        """
+        Imprime a tabela de símbolos do bloco atual no log.
+        """
+        logging.info(f"\033[90mImprimindo tabela de símbolos do bloco que está sendo fechado\033[0m")
+        for chave, simbolo in self.pilha_escopo[-1].simbolos.items():
+            logging.info(f"\033[90mLexema: {simbolo.lexema}, Tipo: {simbolo.tipo}, Valor: {simbolo.valor}\033[0m")
     
 class ProcessadorSemantico:
     def __init__(self):
-        self.analisador = AnalisadorSemantico()
-        self.bloco_atual = None
+        self.tipos_validos = {'NUMERO': (int, float), 'CADEIA': str}
     
     def processar_codigo_arquivo(self, nome_arquivo):
         """
@@ -283,9 +350,18 @@ class ProcessadorSemantico:
         Args:
             nome_arquivo (str): O nome do arquivo a ser processado.
         """
+        instrucoes:list[dict] = []
         with open(nome_arquivo, 'r', encoding='utf-8') as arquivo:
             for linha in arquivo:
-                self.processar_linha(linha)
+                if linha.strip():
+                    instrucao = self.processar_linha(linha)
+                    if isinstance(instrucao, dict):
+                        instrucoes.append(instrucao)
+                    elif isinstance(instrucao, list):
+                        instrucoes.extend(instrucao)
+        if instrucoes:
+            logging.info(f"\033[92mInstruções processadas com sucesso\033[0m")
+        return instrucoes
     
     def processar_linha(self, linha):
         """
@@ -294,23 +370,20 @@ class ProcessadorSemantico:
         Args:
             linha (str): A linha de código a ser processada.
         """
-        if linha.strip() == "":
-            return
-        
         logging.warning(f"\033[95mProcessando linha: {linha.strip()}\033[0m")
         
         linha = linha.strip()
 
         if linha.startswith("BLOCO"):
-            self.processar_bloco(linha)
+            return self.processar_bloco(linha)
         elif linha.startswith("FIM"):
-            self.processar_fim(linha)
+            return self.processar_fim(linha)
         elif linha.startswith("PRINT"):
-            self.processar_print(linha)
+            return self.processar_print(linha)
         elif "=" in linha:
-            self.processar_atribuicao(linha)
-        elif linha.startswith(tuple(self.analisador.tipos_validos.keys())):
-            self.processar_declaracao(linha)
+            return self.processar_atribuicao(linha)
+        elif linha.startswith(tuple(self.tipos_validos.keys())):
+            return self.processar_declaracao(linha)
             
     def processar_bloco(self, linha):
         """
@@ -322,9 +395,7 @@ class ProcessadorSemantico:
         partes = linha.split()
         if len(partes) == 2:
             nome_bloco = partes[1]
-            logging.debug(f"Abrindo bloco: {nome_bloco}")
-            self.bloco_atual = nome_bloco
-            self.analisador.abrir_escopo()
+            return {"instrucao": "BLOCO", "nome_bloco": nome_bloco}
         else:
             messagem_erro = f"ERRO: Formato inválido para BLOCO."
             logging.error(f"\033[91m{messagem_erro}\033[0m")
@@ -337,15 +408,11 @@ class ProcessadorSemantico:
 
         Args:
             linha (str): A linha contendo a instrução 'FIM'.
-        """
-        if logging.getLogger().isEnabledFor(logging.DEBUG):
-            self.imprimir_tabela_simbolos()
-        
+        """       
         partes = linha.split()
         if len(partes) == 2:
             nome_bloco = partes[1]
-            logging.debug(f"Fechando bloco: {nome_bloco}")
-            self.analisador.fechar_escopo()
+            return {"instrucao": "FIM", "nome_bloco": nome_bloco}
         else:
             messagem_erro = f"ERRO: Formato inválido para FIM."
             logging.error(f"\033[91m{messagem_erro}\033[0m")
@@ -358,8 +425,7 @@ class ProcessadorSemantico:
             linha (str): A linha contendo a instrução de impressão.
         """
         lexema = linha.split()[1]
-        logging.info(f"\033[90mProcessando instrução de impressão: {lexema} no bloco {self.bloco_atual}\033[0m")
-        self.analisador.processar_print(lexema)
+        return {"instrucao": "PRINT", "lexema": lexema}
         
     def processar_atribuicao(self, linha):
         """
@@ -368,7 +434,7 @@ class ProcessadorSemantico:
         Args:
             linha (str): A linha contendo a atribuição.
         """
-        if linha.startswith(tuple(self.analisador.tipos_validos.keys())): 
+        if linha.startswith(tuple(self.tipos_validos.keys())): 
             partes = linha.split(maxsplit=1)
             tipo_declarado = partes[0]
             declaracoes = partes[1].split(",") 
@@ -376,6 +442,7 @@ class ProcessadorSemantico:
             declaracoes = linha.split(",")
             tipo_declarado = None
         
+        instrucoes:list[dict] = []
         for declaracao in declaracoes:
             valor = None
             if "=" in declaracao:
@@ -384,7 +451,8 @@ class ProcessadorSemantico:
             else:
                 lexema = declaracao.strip()
             
-            self.analisador.adicionar_variavel(lexema, tipo_declarado, valor)
+            instrucoes.append({"instrucao": "ATRIBUICAO", "lexema": lexema, "tipo_declarado": tipo_declarado, "valor": valor})
+        return instrucoes
         
     def processar_declaracao(self, linha):
         """
@@ -397,13 +465,16 @@ class ProcessadorSemantico:
         partes = linha.split(maxsplit=1)
         tipo = partes[0]
         declaracoes = partes[1].replace(" ", "").split(",") 
+        instrucoes:list[dict] = []
         for declaracao in declaracoes:
-            self.analisador.adicionar_variavel(declaracao, tipo)
+            instrucoes.append({"instrucao": "DECLARACAO", "lexema": declaracao, "tipo": tipo})
+        return instrucoes
     
+    """
     def imprimir_tabela_simbolos(self):
-        """
+        '''
         Imprime a tabela de símbolos do bloco que está sendo fechado.
-        """
+        '''
         logging.info(f"\033[90mImprimindo tabela de símbolos do bloco que está sendo fechado\033[0m")
         for chave, simbolo in self.analisador.pilha_escopo[-1].simbolos.items():
             conteudo_lexema = simbolo.lexema
@@ -412,6 +483,7 @@ class ProcessadorSemantico:
 
             # Agora você pode usar ou imprimir esses valores conforme necessário
             logging.info(f"\033[90mLexema: {conteudo_lexema}, Tipo: {tipo}, Valor: {valor}\033[0m")
+    """
 
 def config_logging(debug=False, info=False):
     """
@@ -445,23 +517,56 @@ def analisar_argumentos():
     parser.add_argument("-i", "--input", help="Executa o processador semântico no arquivo ARQUIVO.")
     parser.add_argument("-d", "--debug", action="store_true", help="Ativa o modo de depuração.")
     parser.add_argument("-id", "--info", action="store_true", help="Ativa o modo de depuração com mensagens informativas.")
+    parser.add_argument("-l", "--log", action="store_true", help="Salva o log em um arquivo.")
 
     return parser.parse_args()
 
+def formatar_log(logname_file):
+    """
+    Formata o log para que as mensagens de erro sejam destacadas em vermelho.
+
+    Args:
+        logname_file (str): O nome do arquivo de log.
+    """
+    _cores = '\033[0m\033[91m\033[92m\033[93m\033[94m\033[95m\033[96m\033[97m'
+    with open(logname_file, 'r', encoding='utf-8') as arquivo:
+        log = ''
+        for linha in arquivo.read().split('\n'):
+            linha = linha.lstrip(_cores).rstrip('\033[0m')
+            log += f"🔶 {linha}\n" if linha.startswith('ERRO') else f"💠 {linha}\n" if linha.startswith(('Adicionando', 'Abrindo', 'Fechando')) else f"🔹 {linha}\n"
+    with open(logname_file, 'w', encoding='utf-8') as arquivo:
+        arquivo.write(log)        
+    print(f"Log salvo em {logname_file}")
+
 
 def main():
+    # Processa os argumentos de linha de comando e configura o logging
     args = analisar_argumentos()
     arquivo =  args.input if args.input else "programa.cic"  
     level = config_logging(args.debug, args.info)  
-        
-    logging.basicConfig(level=level, format='\033[93m%(message)s\033[0m')    
+    logname = "log.txt" if args.log else None        
+    logging.basicConfig(filename=logname, filemode='w', encoding='utf-8', level=level, format='\033[93m%(message)s\033[0m')
     
-    processador = ProcessadorSemantico() # Instancia o processador semântico
+    # Processa o código do arquivo e executa as instruções
+    instrucoes:list[dict] = []
+    processador = ProcessadorSemantico() 
     try:
-        processador.processar_codigo_arquivo(arquivo) # Processa o código do arquivo
+        instrucoes = processador.processar_codigo_arquivo(arquivo) 
     except FileNotFoundError:
         print(f"ERRO: Arquivo '{arquivo}' não encontrado.")
         sys.exit(1)
+
+    # Executa as instruções processadas
+    analisador = AnalisadorSemantico()
+    analisador.executar_instrucoes(instrucoes) 
+    
+    # Remove os caracteres de formatação do log e salva em um arquivo
+    if args.log:
+        try:
+            formatar_log(logname)
+        except FileNotFoundError:
+            print(f"ERRO: Arquivo '{logname}' não encontrado.")
+            sys.exit(1)
     
 if __name__ == "__main__":
     main()
