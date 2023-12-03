@@ -1,4 +1,6 @@
 import logging
+import sys
+import argparse
 
 class Simbolo:
     def __init__(self, lexema, tipo, valor=None):
@@ -155,12 +157,12 @@ class AnalisadorSemantico:
         Returns:
             int: 1 se o lexema está declarado no escopo atual, -1 se está declarado em escopos anteriores, 0 caso contrário.
         """
-        logging.debug(f"Verificando declaração do símbolo '{lexema}' no escopo atual")
+        logging.debug(f"\033[90mVerificando declaração do símbolo '{lexema}' no escopo atual\033[0m")
         escopo_atual = self.pilha_escopo[-1]
         if escopo_atual.tem_simbolo(lexema):
             return 1
         
-        logging.debug(f"Verificando declaração do símbolo '{lexema}' em escopos anteriores")
+        logging.debug(f"\033[90mVerificando declaração do símbolo '{lexema}' em escopos anteriores\033[0m")
         if any(tabela.tem_simbolo(lexema) for tabela in self.pilha_escopo[-2::-1]):
             return -1
         
@@ -249,9 +251,11 @@ class AnalisadorSemantico:
             O valor do símbolo, se encontrado. Caso contrário, retorna None.
         """
         escopo_atual = self.pilha_escopo[-1]
+        logging.info(f"\033[90mObtendo valor do símbolo '{lexema}' no escopo atual\033[0m")
         if escopo_atual.tem_simbolo(lexema) and escopo_atual.simbolos[lexema].valor is not None:
             return escopo_atual.simbolos[lexema].valor
         else:
+            logging.info(f"\033[90mObtendo valor do símbolo '{lexema}' em escopos anteriores\033[0m")
             for tabela in self.pilha_escopo[-2::-1]:
                 if tabela.tem_simbolo(lexema) and tabela.simbolos[lexema].valor is not None:
                     return tabela.simbolos[lexema].valor
@@ -289,7 +293,7 @@ class ProcessadorSemantico:
         if linha.strip() == "":
             return
         
-        logging.info(f"\033[95mProcessando linha: {linha.strip()}\033[0m")
+        logging.warning(f"\033[95mProcessando linha: {linha.strip()}\033[0m")
         
         linha = linha.strip()
 
@@ -435,12 +439,41 @@ class ProcessadorSemantico:
 
             # Agora você pode usar ou imprimir esses valores conforme necessário
             print(f"Chave: {chave}, Lexema: {conteudo_lexema}, Tipo: {tipo}, Valor: {valor}")
-        print("-"*50)
+        print("-"*50)  
+
+def config_logging(debug=False, info=False):
+    if debug:
+        level = logging.DEBUG
+    elif info:
+        level = logging.INFO
+    else:
+        level = logging.WARNING
+    return level
+
+def analisar_argumentos():
+    parser = argparse.ArgumentParser(description="Executa o processador semântico em um arquivo.")
+    
+    parser.add_argument("-i", "--input", help="Executa o processador semântico no arquivo ARQUIVO.")
+    parser.add_argument("-d", "--debug", action="store_true", help="Ativa o modo de depuração.")
+    parser.add_argument("-id", "--info", action="store_true", help="Ativa o modo de depuração com mensagens informativas.")
+
+    return parser.parse_args()
+
 
 def main():
-    logging.basicConfig(level=logging.DEBUG, format='\033[93m%(message)s\033[0m')
-    procesador = ProcessadorSemantico()
-    procesador.processar_codigo_arquivo("programa.cic")
+    args = analisar_argumentos()
+    config_logging(args.debug, args.info)
+    arquivo =  args.input if args.input else "programa.cic"  
+    level = config_logging(args.debug, args.info)  
+        
+    logging.basicConfig(level=level, format='\033[93m%(message)s\033[0m')    
+    
+    procesador = ProcessadorSemantico() # Instancia o processador semântico
+    try:
+        procesador.processar_codigo_arquivo(arquivo) # Processa o código do arquivo
+    except FileNotFoundError:
+        print(f"ERRO: Arquivo '{arquivo}' não encontrado.")
+        sys.exit(1)
     
 if __name__ == "__main__":
     main()
