@@ -171,7 +171,8 @@ class ProcessadorSemantico:
                 print(f"Abrindo bloco: {nome_bloco}")
             self.analisador.abrir_escopo()
         else:
-            print("ERRO: Formato inválido para BLOCO.")
+            messagem_erro = f"ERRO: Formato inválido para BLOCO."
+            print(f"\033[91m{messagem_erro}\033[0m")
     
     def processar_fim(self, linha):
         if self.debug:
@@ -184,7 +185,8 @@ class ProcessadorSemantico:
                 print(f"Fechando bloco: {nome_bloco}")
             self.analisador.fechar_escopo()
         else:
-            print("ERRO: Formato inválido para FIM.")
+            messagem_erro = f"ERRO: Formato inválido para FIM."
+            print(f"\033[91m{messagem_erro}\033[0m")
     
     def processar_print(self, linha):
         lexema = linha.split()[1]
@@ -221,7 +223,8 @@ class ProcessadorSemantico:
                 if (tipo_declarado is not None): # -> Tem tipo declarado?
                     # Se variavel existe no escopo atual: Da erro
                     if (self.analisador.verificar_declaracao(lexema) == 1):
-                        print(f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo.")
+                        messagem_erro = f"ERRO SEMÂNTICO: Variável '{lexema}' já declarada neste escopo."
+                        print(f"\033[91m{messagem_erro}\033[0m")
                     # Se não, Se Variavel existe em algum escopo anterior: Cria uma variavel local 
                     else:
                         self.analisador.adicionar_variavel(lexema, tipo_declarado, valor)
@@ -267,67 +270,3 @@ def main():
     
 if __name__ == "__main__":
     main()
-
-        
-        
-
-
-"""
-# Exemplo de uso
-analisador = AnalisadorSemantico()
-analisador.abrir_escopo()
-
-# Bloco _principal_
-print('Bloco principal')
-analisador.adicionar_variavel('a', 'NUMERO', 10)
-analisador.adicionar_variavel('b', 'NUMERO', 20)
-analisador.adicionar_variavel('x', 'CADEIA')
-
-analisador.processar_print('b')
-analisador.processar_print('a')
-
-analisador.atualizar_valor('x', 'Ola mundo')
-analisador.atualizar_valor('x', analisador.obter_valor('a'))
-analisador.processar_print('x')
-
-# Bloco _n1_
-print('Bloco n1')
-analisador.abrir_escopo()
-analisador.adicionar_variavel('a', 'CADEIA', 'Compiladores')
-analisador.adicionar_variavel('c', 'NUMERO', -0.45)
-analisador.processar_print('b')
-analisador.processar_print('c')
-analisador.fechar_escopo()
-
-# Bloco _n2_
-print('Bloco n2')
-analisador.abrir_escopo()
-analisador.adicionar_variavel('b', 'CADEIA', 'Compiladores')
-analisador.processar_print('a')
-analisador.processar_print('b')
-analisador.atualizar_valor('a', 11)
-analisador.adicionar_variavel('a', 'CADEIA', 'Bloco2')
-analisador.processar_print('a')
-analisador.processar_print('c')  # Erro: Variável 'c' não declarada neste escopo
-analisador.abrir_escopo()
-
-# Bloco _n3_
-print('Bloco n3')
-analisador.adicionar_variavel('a', 'NUMERO', -0.28)
-analisador.adicionar_variavel('c', 'NUMERO', -0.28)
-analisador.processar_print('a')
-analisador.processar_print('b')
-analisador.processar_print('c')
-analisador.adicionar_variavel('d', 'CADEIA', 'Compiladores')
-analisador.processar_print('d')
-analisador.adicionar_variavel('e', 'CADEIA', analisador.obter_valor('d'))
-analisador.processar_print('e')
-
-analisador.fechar_escopo()  # Fecha _n3_
-analisador.fechar_escopo()  # Fecha _n2_
-
-analisador.processar_print('c')
-analisador.processar_print('a')
-
-analisador.fechar_escopo()  # Fecha _principal_
-"""
