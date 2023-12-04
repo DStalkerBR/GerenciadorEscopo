@@ -44,7 +44,13 @@ python main.py [-h] [-i ARQUIVO] [-d] [-id] [-w] [-l]
 | -d, --debug             | Ativa o modo de depuração.                            |
 | -id, --info             | Ativa o modo de depuração com mensagens informativas. |
 | -w, --warning           | Ativa o modo de depuração com mensagens de aviso.     |
-| -l, --log               | Salva o log em um arquivo.                            |                                                    |
+| -l, --log               | Salva o log em um arquivo.                            | 
+
+**Sobre modo de Depuração:**
+> `padrão`: Caso nenhum argumento de depuração for passado, exibe somente erros.  
+> `--warning`: Além dos erros, informa qual instrução está sendo processada.  
+>`--info`: Fornece informações adicionais sobre o processamento, como verificação de tipo, obtenção de valor e processo de print  
+> `--debug`: Inclui todas as informações anteriores, além de mais detalhes, como abertura e fechamento de blocos, adição de variáveis em escopos, verificação de declarações e atualização de valores.
 
 ## Como funciona
 
