@@ -1,0 +1,5 @@
+BLOCO Main
+    NUMERO x
+    x = 42
+    PRINT x
+FIM Main

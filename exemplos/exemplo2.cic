@@ -1,0 +1,17 @@
+BLOCO Principal
+    NUMERO x
+    x = 10
+    PRINT x
+
+    BLOCO Aninhado
+        CADEIA y
+        x = 15
+        y = 20
+        PRINT y
+        PRINT x
+    FIM Aninhado
+
+    CADEIA z
+    z = x
+    PRINT z
+FIM Principal
