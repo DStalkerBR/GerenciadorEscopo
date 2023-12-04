@@ -23,7 +23,6 @@ BLOCO _principal_
         PRINT a 
         PRINT b 
         a=11
-        PRINT a
         CADEIA a= "Bloco2"
         PRINT a 
         PRINT c
