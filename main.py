@@ -94,6 +94,8 @@ class AnalisadorSemantico:
             instrucao (dict): A instrução a ser executada.
         """
         instrucao_formatada = f"{instrucao['instrucao']}: " + ', '.join(f"{value}" for key, value in instrucao.items() if key != "instrucao" and value)
+        if instrucao_formatada.startswith("PRINT"):
+            instrucao_formatada = f"{instrucao_formatada} no bloco {self.nome_blocos[-1]}"
         logging.warning(f"\033[95mExecutando instrução: {instrucao_formatada}\033[0m")
         if instrucao["instrucao"] == "BLOCO":
             self.abrir_escopo(instrucao["nome_bloco"])
@@ -152,7 +154,7 @@ class AnalisadorSemantico:
         # See não foi declarada, verifica o tipo do valor e adiciona a variável
         if tipo is None:
             declaracao_status = self.verificar_declaracao(lexema) # Verifica se a variável já foi declarada
-            if declaracao_status != 0: 
+            if declaracao_status in {1, -1}: 
                 return self.atualizar_valor(lexema, valor) # Atualiza o valor se a variavel já foi declarada
             else:
                 tipo = "CADEIA" if isinstance(valor, str) else "NUMERO" 
@@ -282,7 +284,7 @@ class AnalisadorSemantico:
             bool: True se o valor foi atualizado com sucesso, False caso contrário.
         """
         logging.debug(f"Atualizando valor do símbolo '{simbolo.lexema}' para '{novo_valor}'")
-        if simbolo.valor is None or (simbolo.tipo in self.tipos_validos and isinstance(novo_valor, self.tipos_validos[simbolo.tipo])):
+        if isinstance(novo_valor, self.tipos_validos[simbolo.tipo]):
             simbolo.valor = novo_valor
             return True
         else:
@@ -360,7 +362,7 @@ class ProcessadorSemantico:
                     elif isinstance(instrucao, list):
                         instrucoes.extend(instrucao)
         if instrucoes:
-            logging.info(f"\033[92mInstruções processadas com sucesso\033[0m")
+            logging.warning(f"\033[92mInstruções processadas com sucesso\033[0m")
         return instrucoes
     
     def processar_linha(self, linha):
@@ -469,23 +471,8 @@ class ProcessadorSemantico:
         for declaracao in declaracoes:
             instrucoes.append({"instrucao": "DECLARACAO", "lexema": declaracao, "tipo": tipo})
         return instrucoes
-    
-    """
-    def imprimir_tabela_simbolos(self):
-        '''
-        Imprime a tabela de símbolos do bloco que está sendo fechado.
-        '''
-        logging.info(f"\033[90mImprimindo tabela de símbolos do bloco que está sendo fechado\033[0m")
-        for chave, simbolo in self.analisador.pilha_escopo[-1].simbolos.items():
-            conteudo_lexema = simbolo.lexema
-            tipo = simbolo.tipo
-            valor = simbolo.valor
 
-            # Agora você pode usar ou imprimir esses valores conforme necessário
-            logging.info(f"\033[90mLexema: {conteudo_lexema}, Tipo: {tipo}, Valor: {valor}\033[0m")
-    """
-
-def config_logging(debug=False, info=False):
+def config_logging(debug=False, info=False, warning=False):
     """
     Configura o nível de logging baseado nos parâmetros fornecidos.
 
@@ -501,8 +488,11 @@ def config_logging(debug=False, info=False):
         level = logging.DEBUG
     elif info:
         level = logging.INFO
-    else:
+    elif warning:
         level = logging.WARNING
+    else:
+        level = logging.ERROR
+        
     return level
 
 def analisar_argumentos():
@@ -517,6 +507,7 @@ def analisar_argumentos():
     parser.add_argument("-i", "--input", help="Executa o processador semântico no arquivo ARQUIVO.")
     parser.add_argument("-d", "--debug", action="store_true", help="Ativa o modo de depuração.")
     parser.add_argument("-id", "--info", action="store_true", help="Ativa o modo de depuração com mensagens informativas.")
+    parser.add_argument("-w", "--warning", action="store_true", help="Ativa o modo de depuração com mensagens de aviso.")
     parser.add_argument("-l", "--log", action="store_true", help="Salva o log em um arquivo.")
 
     return parser.parse_args()
@@ -543,7 +534,7 @@ def main():
     # Processa os argumentos de linha de comando e configura o logging
     args = analisar_argumentos()
     arquivo =  args.input if args.input else "programa.cic"  
-    level = config_logging(args.debug, args.info)  
+    level = config_logging(args.debug, args.info, args.warning)  
     logname = "log.txt" if args.log else None        
     logging.basicConfig(filename=logname, filemode='w', encoding='utf-8', level=level, format='\033[93m%(message)s\033[0m')
     
